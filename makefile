@@ -31,10 +31,28 @@ INC_PATH               += $(IR_PARSE_DIR)/include $(IR_PARSE_GENERATE_DIR)
 
 
 ## IR_OPTIMIZE
-IR_OPTIMIZE_DIR := $(SRC_DIR)/IR_optimize
-SRCS            += $(shell find $(IR_OPTIMIZE_DIR) -name "*.c" -or -name "*.cpp")
-INC_PATH        += $(IR_OPTIMIZE_DIR)/include
+INC_PATH += $(SRC_DIR)/IR_optimize/include
 
+COMMON_SRCS := $(wildcard $(SRC_DIR)/IR_optimize/solver.c)
+
+# 必须指定 TASK 变量
+ifeq ($(TASK),)
+$(error Please specify TASK=optional_task1, optional_task2, or optional_task3)
+endif
+
+# 检查任务目录是否存在
+TASK_DIR := $(SRC_DIR)/IR_optimize/$(TASK)
+ifeq ($(wildcard $(TASK_DIR)),)
+$(error Task directory $(TASK_DIR) does not exist)
+endif
+
+# 添加任务专属源文件（递归查找）
+TASK_SRCS := $(shell find $(TASK_DIR) -name "*.c" -or -name "*.cpp")
+ifeq ($(TASK_SRCS),)
+$(warning No source files found in $(TASK_DIR))
+endif
+
+SRCS += $(COMMON_SRCS) $(TASK_SRCS)
 
 # Tools
 

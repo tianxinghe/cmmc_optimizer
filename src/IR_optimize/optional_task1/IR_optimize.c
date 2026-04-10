@@ -7,7 +7,6 @@
 #include <constant_propagation.h>
 #include <available_expressions_analysis.h>
 #include <copy_propagation.h>
-#include <loop_invariant_code_motion.h>
 
 void remove_dead_block(IR_function *func) {
     // remove
@@ -32,7 +31,7 @@ void remove_dead_stmt(IR_block *blk) {
 }
 
 
-void IR_optimize() {
+void IR_optimize1() {
     ConstantPropagation *constantPropagation;
     AvailableExpressionsAnalysis *availableExpressionsAnalysis;
     CopyPropagation *copyPropagation;
@@ -66,9 +65,6 @@ void IR_optimize() {
             // VCALL(*copyPropagation, printResult, func);
             CopyPropagation_replace_available_use_copy(copyPropagation, func);
             DELETE(copyPropagation);
-
-            //// Loop Invariant Code Motion
-            // LoopInvariantCodeMotion_optimize(func);
         }
         
 
