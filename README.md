@@ -485,3 +485,31 @@ typedef struct {
 - [数据流分析相关优化](docs/dataflow_analysis.md) — 全局公共子表达式消除、常量传播、死代码消除等
 - [循环不变代码外提（LICM）](docs/loop_invariant_code_motion.md) — 识别并外提循环不变语句
 - [归纳变量强度削减](docs/induction_variable_strength_reduction.md) — 将循环内乘法替换为加法递推
+
+## 编译与运行
+
+本实验的三个选做任务分别放在以下目录中：
+
+- `src/IR_optimize/optional_task1`
+- `src/IR_optimize/optional_task2`
+- `src/IR_optimize/optional_task3`
+
+编译时需要通过指定 `TASK` 变量来选择对应任务。
+
+例如，要编译并运行**循环不变代码外提（任务1）**，请执行：
+
+```bash
+make TASK=optional_task1
+```
+
+编译成功后，会生成可执行文件：
+
+```bash
+./parser
+```
+
+随后可以运行测试文件：
+
+```bash
+./parser test.cmm
+```
