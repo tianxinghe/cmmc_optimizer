@@ -664,6 +664,391 @@ RETURN #0
 
 事实上, 可以根据常量传播的结果分析IF语句的跳转关系, 标记不可达基本块, 从而进一步完成死代码消除
 
+### 循环不变代码外提（LICM）– 基于本框架代码的简要说明
+
+### 1. 代码文件
+`src/IR_optimize/loop_invariant_code_motion.c`
+
+---
+
+### 2. 核心数据结构
+    typedef struct {
+        IR_block *header;               // 循环头
+        Set_IR_block_ptr body;          // 循环体（基本块集合）
+        Set_ptr_IR_stmt_ptr invariant_stmts; // 识别出的不变语句
+    } NaturalLoop;
+
+---
+
+### 3. 主要函数
+
+#### LoopInvariantCodeMotion_optimize(IR_function *func)
+
+#### 步骤：
+
+1. 构建映射  
+   stmt_blk_map：语句 → 所属基本块。
+
+2. 到达定值分析  
+   ReachingDefinitions rd;  
+   iterative_solver(...)  
+   得到每个块入口处每个变量的所有可能定义语句。
+
+   calculate_dominators(func)  
+   得到 dom 映射：块 → 它支配的所有块
+3. 计算支配树  。
+
+4. 找出所有自然循环  
+   遍历回边 n → h（h 支配 n）  
+   调用 find_natural_loop 构造 NaturalLoop  
+   存入 Vec_NaturalLoop loops
+
+5. 对每个循环执行优化：
+
+#### A. 识别不变语句候选（迭代标记）
+    while (changed) { ... }
+
+条件：
+- 语句类型为赋值或二元运算
+- 每个操作数满足：
+  - 常量
+  - 循环内定义且该定义语句已标记为不变
+  - 定义来自循环外
+
+---
+
+#### B. 安全性修剪（再次迭代）
+    while (changed) { ... }
+
+检查：
+- 依赖一致性
+- 支配所有出口
+- 唯一定义
+- 支配所有使用
+- 入口活跃性
+
+不满足则从 invariant_stmts 中删除。
+
+---
+
+#### C. 移动代码
+- 寻找唯一前置头（preheader）
+- 按原顺序移动不变语句到前置头末尾
+- 避开跳转/返回语句
+- 更新 stmt_blk_map
+
+---
+
+### 4. 关键辅助函数
+
+- ReachingDefinitions_*：到达定值分析  
+- calculate_dominators：计算支配集合  
+- is_dominated(dom, n, d)：判断支配关系  
+- find_natural_loop：构造循环体  
+- Util_Set_Union：集合并集  
+
+---
+
+### 5. 安全性检查要点
+
+| 检查项 | 实现方式 |
+|--------|----------|
+| 依赖一致性 | 操作数在循环内定义但未标记不变 → 删除 |
+| 支配所有出口 | stmt 必须支配所有出口块 |
+| 唯一定义 | 循环内不能有其他同变量定义 |
+| 支配所有使用 | 使用点必须被 stmt 支配 |
+| 入口活跃性 | 若入口有外部定义 → 不外提 |
+
+---
+
+### 6. 移动代码示例
+
+    // 移动前
+    LABEL L1:
+        v5 := v3 + v4   // 不变
+        v6 := v5 * v1
+        ...
+
+    // 移动后
+        v5 := v3 + v4
+        GOTO L1
+    LABEL L1:
+        v6 := v5 * v1
+        ...
+
+---
+
+### 7. 总体执行流程图
+```
+开始
+  │
+  ├─► 构建语句→块映射 stmt_blk_map
+  ├─► 执行到达定值分析 (ReachingDefinitions)
+  ├─► 计算支配树 (dom)
+  │
+  ├─► 查找所有自然循环 (遍历回边)
+  │      │
+  │      └─► 对每个循环：
+  │            │
+  │            ├─► 步骤A: 迭代标记不变语句
+  │            │      │
+  │            │      └─► 检查每条语句的操作数：
+  │            │            - 若操作数在循环内定义且该定义语句已标记不变 → 通过
+  │            │            - 若操作数定义来自循环外 → 通过
+  │            │            - 否则 → 不是不变
+  │            │
+  │            ├─► 步骤B: 安全修剪
+  │            │      │
+  │            │      ├─► 依赖一致性
+  │            │      ├─► 支配所有出口
+  │            │      ├─► 唯一定义
+  │            │      ├─► 支配所有使用（含块内顺序）
+  │            │      └─► 入口活跃性检查
+  │            │
+  │            └─► 步骤C: 代码移动
+  │                   │
+  │                   ├─► 寻找唯一前置头 preheader
+  │                   ├─► 按程序顺序收集要移动的语句
+  │                   ├─► 从原块删除，插入 preheader
+  │                   └─► 更新 stmt_blk_map
+  │
+  └─► 释放资源，结束
+```
+
+### 归纳变量强度削减（Induction Variable Strength Reduction）– 基于本框架代码的简要说明
+
+### 1. 代码文件
+`src/IR_optimize/induction_variable_strength_reduction.c`
+
+---
+
+### 2. 核心数据结构
+
+    // 自然循环结构
+    typedef struct {
+        IR_block *header;                 // 循环头
+        Set_IR_block_ptr body;            // 循环体基本块集合
+    } NaturalLoop;
+
+---
+
+    // 线性函数：a * i + b
+    typedef struct LinearFunction {
+        int coeff;        // 乘数 a
+        int const_term;   // 常数项 b
+        IR_var base_var;  // 基础归纳变量
+    } LinearFunction;
+
+---
+
+    // 归纳变量信息
+    typedef struct InductionVarInfo {
+        IR_var var;              // 当前变量
+        IR_var base;             // 基础归纳变量（自身为 IR_VAR_NONE）
+        LinearFunction expr;     // 线性表达式
+        int step;                // 每次迭代增量
+        IR_stmt *update_stmt;    // 更新语句
+    } InductionVarInfo;
+
+---
+
+### 3. 主要函数
+
+#### InductionVariableStrengthReduction_optimize(IR_function *func)
+
+---
+
+### 4. 整体流程
+
+#### Step 1：构建语句 → 基本块映射
+    stmt_blk_map：IR_stmt → IR_block
+
+用于：
+- 定位定义所在块
+- 判断循环内/外定义
+
+---
+
+#### Step 2：到达定值分析
+    ReachingDefinitions rd;
+    iterative_solver(...);
+
+得到：
+- 每个 block 入口变量的所有可能定义语句集合
+- 用于判断变量是否来自循环外
+
+---
+
+#### Step 3：支配树 + 自然循环分析
+
+- calculate_dominators(func)
+  → 得到 dom 关系（支配集合）
+
+- 回边识别：
+    n → h 且 h dominates n
+
+- find_natural_loop()
+  → 构造 NaturalLoop（循环体）
+
+---
+
+#### Step 4：识别基础归纳变量
+
+##### is_basic_induction_update(stmt)
+
+识别模式：
+
+    i = i + c
+    i = i - c
+
+条件：
+- IR_OP_ADD / IR_OP_SUB
+- 左值等于某个操作数
+- 另一个操作数为常量
+
+---
+
+##### 判定逻辑：
+
+- 若变量在循环头有外部初始定义
+- 且满足线性递增
+→ 加入 ind_vars
+
+---
+
+#### Step 5：识别派生归纳变量
+
+##### is_strength_reducible(stmt)
+
+识别模式：
+
+    x = i * c
+    x = c * i
+
+条件：
+- IR_OP_MUL
+- 一个操作数是归纳变量
+- 一个操作数是常量
+
+---
+
+##### 扩展规则：
+
+若：
+
+    i ∈ ind_vars
+
+则：
+
+    x = c * i + b
+
+也加入 ind_vars（派生归纳变量）
+
+---
+
+#### Step 6：强度削减替换
+
+对每个归纳变量相关语句执行优化：
+
+---
+
+##### 6.1 初始化（preheader）
+
+    tmp = init_val * coeff
+
+---
+
+##### 6.2 递推更新（loop内）
+
+    tmp = tmp + coeff * step
+
+---
+
+##### 6.3 替换原语句
+
+    x = tmp
+
+---
+
+### 5. 关键辅助分析函数
+
+- ReachingDefinitions_*  
+  → 到达定值分析（变量定义传播）
+
+- calculate_dominators  
+  → 计算支配关系
+
+- is_dominated(dom, n, d)  
+  → 判断 d 是否支配 n
+
+- find_natural_loop  
+  → 构造自然循环
+
+- get_preheader  
+  → 获取唯一循环前置块
+
+---
+
+### 6. 安全性约束（必须满足）
+
+| 检查项 | 说明 |
+|--------|------|
+| 循环外初始化 | 必须存在初始值 |
+| 定义唯一性 | 循环内不能多重定义 |
+| 支配关系 | 使用点必须被定义支配 |
+| 循环内无非法重定义 | 防止破坏 SSA/语义 |
+| 预头块唯一 | 只能有一个入口 |
+
+---
+
+### 7. 典型优化示例
+
+#### 优化前：
+
+    i = i + 1
+    x = i * 10
+
+---
+
+#### 优化后：
+
+    t = i0 * 10
+    t = t + 10
+    x = t
+
+---
+
+### 8. 总体执行流程图
+```
+开始
+│
+├─► 构建 stmt → block 映射
+│
+├─► ReachingDefinitions 分析
+│
+├─► 计算支配树 dom
+│
+├─► 构造自然循环 NaturalLoop
+│
+├─► 识别基础归纳变量
+│ │
+│ └─► i = i ± c 模式检测
+│
+├─► 识别派生归纳变量
+│ │
+│ └─► x = i * c / c * i
+│
+├─► 构造线性表达式 a*i + b
+│
+├─► 执行强度削减
+│ │
+│ ├─► preheader 初始化
+│ ├─► loop 内递推替换
+│ └─► 原语句替换
+│
+└─► 释放资源，结束
+```
+
 ## * 实验框架改进
 
 目前实验框架的 gen/kill, use/def 关系是以 Stmt 为单位进行转移, 效率较低, 事实上可用将 Block 内所有 Stmt 的 gen/kill, use/def 进行合并以提高 transferBlock 的效率, 从而得到龙书课本上真正的算法实现. 如果你选择实现改进, 你需要建立从 block 到 gen/kill, use/def 的映射, 当然会遇到很多具体细节和难点.
