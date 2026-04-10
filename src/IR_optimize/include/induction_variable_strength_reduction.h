@@ -1,5 +1,5 @@
-#ifndef CODE_LOOP_INVARIANT_CODE_MOTION_H
-#define CODE_LOOP_INVARIANT_CODE_MOTION_H
+#ifndef CODE_INDUCTION_VARIABLE_STRENGTH_REDUCTION_H
+#define CODE_INDUCTION_VARIABLE_STRENGTH_REDUCTION_H
 
 #include <IR_optimize.h>
 #include <dataflow_analysis.h>
@@ -28,4 +28,4 @@ void ReachingDefinitions_init(ReachingDefinitions *t);
 
 void InductionVariableStrengthReduction_optimize(IR_function *func);
 
-#endif //CODE_LOOP_INVARIANT_CODE_MOTION_H
+#endif //CODE_INDUCTION_VARIABLE_STRENGTH_REDUCTION_H
