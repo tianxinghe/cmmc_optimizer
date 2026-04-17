@@ -15,7 +15,6 @@ PARSER         := ./parser
 
 
 # Modules
-
 ## IR_PARSE
 IR_PARSE_DIR           := $(SRC_DIR)/IR_parse
 IR_PARSE_GENERATE_DIR  := $(GENERATE_DIR)/IR_parse
@@ -40,8 +39,10 @@ ifeq ($(TASK),)
 $(error Please specify TASK=optional_task1, optional_task2, or optional_task3)
 endif
 
+TASK_NAME := $(subst optional_task,task,$(TASK))
+TASK_DIR := $(SRC_DIR)/$(TASK_NAME)/IR_optimize
+
 # 检查任务目录是否存在
-TASK_DIR := $(SRC_DIR)/IR_optimize/$(TASK)
 ifeq ($(wildcard $(TASK_DIR)),)
 $(error Task directory $(TASK_DIR) does not exist)
 endif
@@ -136,4 +137,4 @@ gdb: all
 	gdb $(PARSER)
 
 test: all # Add args
-	$(PARSER) 
+	$(PARSER)
