@@ -490,16 +490,18 @@ typedef struct {
 
 本实验的三个选做任务分别放在以下目录中：
 
-- `src/IR_optimize/optional_task1`
-- `src/IR_optimize/optional_task2`
-- `src/IR_optimize/optional_task3`
+- `src/task1`
+- `src/task2`
+- `src/task3`
 
 编译时需要通过指定 `TASK` 变量来选择对应任务。
+
+请适当修改`cmmc_optimizer/makefile`文件，例如为编译路径添加或修改Task参数（比如移动或修改`TASK_NAME`和`TASK_DIR`参数以顺利编译）
 
 例如，要编译并运行**数据流分析相关优化（任务1）**，请执行：
 
 ```bash
-make TASK=optional_task1
+make TASK=task1
 ```
 
 编译成功后，会生成可执行文件：
