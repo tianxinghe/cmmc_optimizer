@@ -46,7 +46,7 @@ YACC_FLAGS    += -d -v
 COMMON_CFLAGS += -MMD -c -Wall $(INCLUDES) -O2
 CFLAGS        += $(COMMON_CFLAGS)
 CXX_FLAGS     += $(COMMON_CFLAGS) -std=c++17
-LDFLAGS       += -lfl -ly
+LDFLAGS       += -lfl
 
 # 普通 .c 文件
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
