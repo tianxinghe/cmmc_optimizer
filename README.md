@@ -496,7 +496,6 @@ typedef struct {
 
 编译时需要通过指定 `TASK` 变量来选择对应任务。
 
-请适当修改`cmmc_optimizer/makefile`文件，例如为编译路径添加或修改Task参数（比如移动或修改`TASK_NAME`和`TASK_DIR`参数以顺利编译）
 
 例如，要编译并运行**数据流分析相关优化（任务1）**，请执行：
 

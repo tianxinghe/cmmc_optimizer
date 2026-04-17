@@ -1,140 +1,107 @@
-# Files of CMMC
-
-SRC_DIR        := ./src
-BUILD_DIR      := ./build
-GENERATE_DIR   := $(BUILD_DIR)/generate
-
-SRCS           += $(SRC_DIR)/main.c $(TEST_SRC) \
-					$(shell find $(SRC_DIR)/container -name "*.c" -or -name "*.cpp") \
- 					$(shell find $(SRC_DIR)/IR -name "*.c" -or -name "*.cpp")
-
-OBJ_DIR        := $(BUILD_DIR)/obj
-OBJS           += $(addprefix $(OBJ_DIR)/, $(addsuffix .o, $(basename $(SRCS))))
-
-PARSER         := ./parser
-
-
-# Modules
-## IR_PARSE
-IR_PARSE_DIR           := $(SRC_DIR)/IR_parse
-IR_PARSE_GENERATE_DIR  := $(GENERATE_DIR)/IR_parse
-SRCS                   += $(shell find $(IR_PARSE_DIR) -name "*.c" -or -name "*.cpp")
-IR_LEXICAL_L           := $(shell find $(IR_PARSE_DIR) -name "*.l")
-IR_SYNTAX_Y            := $(shell find $(IR_PARSE_DIR) -name "*.y")
-IR_LEX_YY_C            := $(IR_PARSE_GENERATE_DIR)/IR_lex.yy.c
-IR_SYNTAX_TAB_C        := $(IR_PARSE_GENERATE_DIR)/IR_syntax.tab.c
-IR_LEX_YY_O            := $(OBJ_DIR)/IR_lex.yy.o
-IR_SYNTAX_TAB_O        := $(OBJ_DIR)/IR_syntax.tab.o
-OBJS                   += $(IR_LEX_YY_O) $(IR_SYNTAX_TAB_O)
-INC_PATH               += $(IR_PARSE_DIR)/include $(IR_PARSE_GENERATE_DIR)
-
-
-## IR_OPTIMIZE
-INC_PATH += $(SRC_DIR)/IR_optimize/include
-
-COMMON_SRCS := $(wildcard $(SRC_DIR)/IR_optimize/solver.c)
-
-# 必须指定 TASK 变量
 ifeq ($(TASK),)
-$(error Please specify TASK=optional_task1, optional_task2, or optional_task3)
+$(error Please specify TASK=task1, task2, or task3)
 endif
 
-TASK_NAME := $(subst optional_task,task,$(TASK))
-TASK_DIR := $(SRC_DIR)/$(TASK_NAME)/IR_optimize
+# ========== 目录定义 ==========
+SRC_DIR        := ./src/$(TASK)
+BUILD_DIR      := ./build/$(TASK)
+GENERATE_DIR   := $(BUILD_DIR)/generate
+OBJ_DIR        := $(BUILD_DIR)/obj
 
-# 检查任务目录是否存在
-ifeq ($(wildcard $(TASK_DIR)),)
-$(error Task directory $(TASK_DIR) does not exist)
-endif
+ALL_SRCS := $(shell find $(SRC_DIR) -name "*.c" -or -name "*.cpp")
 
-# 添加任务专属源文件（递归查找）
-TASK_SRCS := $(shell find $(TASK_DIR) -name "*.c" -or -name "*.cpp")
-ifeq ($(TASK_SRCS),)
-$(warning No source files found in $(TASK_DIR))
-endif
+IR_PARSE_DIR   := $(SRC_DIR)/IR_parse
+IR_LEXICAL_L   := $(shell find $(IR_PARSE_DIR) -name "*.l")
+IR_SYNTAX_Y    := $(shell find $(IR_PARSE_DIR) -name "*.y")
+IR_LEX_YY_C    := $(GENERATE_DIR)/IR_lex.yy.c
+IR_SYNTAX_TAB_C := $(GENERATE_DIR)/IR_syntax.tab.c
+IR_SYNTAX_TAB_H := $(GENERATE_DIR)/IR_syntax.tab.h
 
-SRCS += $(COMMON_SRCS) $(TASK_SRCS)
+ALL_SRCS += $(IR_LEX_YY_C) $(IR_SYNTAX_TAB_C)
 
-# Tools
+OBJS := $(addprefix $(OBJ_DIR)/, $(addsuffix .o, \
+        $(basename $(patsubst $(SRC_DIR)/%, %, $(filter $(SRC_DIR)/%, $(ALL_SRCS))))))
 
-LEX          := flex
-YACC         := bison
+GEN_OBJS := $(addprefix $(OBJ_DIR)/, $(addsuffix .o, \
+            $(basename $(notdir $(IR_LEX_YY_C) $(IR_SYNTAX_TAB_C)))))
+OBJS += $(GEN_OBJS)
 
-CC           := gcc
-CXX          := g++
-LD           := gcc
+PARSER := ./parser_$(TASK)
 
+INC_PATH := . \
+            ./include \
+            $(SRC_DIR)/include \
+            $(SRC_DIR)/IR_optimize/include \
+            $(IR_PARSE_DIR)/include \
+            $(GENERATE_DIR)
+INCLUDES := $(addprefix -I, $(INC_PATH))
 
-# Flags
+LEX      := flex
+YACC     := bison
+CC       := gcc
+CXX      := g++
+LD       := gcc
 
 YACC_FLAGS    += -d -v
-
-INC_PATH      += ./include
-INCLUDES       = $(addprefix -I, $(INC_PATH))
-
 COMMON_CFLAGS += -MMD -c -Wall $(INCLUDES) -O2
 CFLAGS        += $(COMMON_CFLAGS)
 CXX_FLAGS     += $(COMMON_CFLAGS) -std=c++17
 LDFLAGS       += -lfl -ly
 
-
-# Building rules
-
-## Compile c/cpp files
-$(OBJ_DIR)/%.o: %.c
+# 普通 .c 文件
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@echo "+ CC" $(notdir $<)
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -o $@ $<
 
-$(OBJ_DIR)/%.o: %.cpp
+# 普通 .cpp 文件
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@echo "+ CXX" $(notdir $<)
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXX_FLAGS) -o $@ $<
 
-# Link the objects
-$(PARSER): $(OBJS)
-	@echo "+ LD" $(notdir $@)
-	@$(LD) -o $@ $^ $(LDFLAGS)
+# 生成 bison 的 .c 和 .h（同时生成）
+$(IR_SYNTAX_TAB_C) $(IR_SYNTAX_TAB_H): $(IR_SYNTAX_Y)
+	@echo "+ YACC" $(notdir $<)
+	@mkdir -p $(dir $@)
+	@$(YACC) $(YACC_FLAGS) -o $(IR_SYNTAX_TAB_C) $<
 
-
-# IR_PARSE
-## Generate lex.yy.c by Flex
-$(IR_LEX_YY_C): $(IR_LEXICAL_L)
+# 生成 flex 的 .c（依赖 bison 头文件）
+$(IR_LEX_YY_C): $(IR_LEXICAL_L) $(IR_SYNTAX_TAB_H)
 	@echo "+ LEX" $(notdir $<)
 	@mkdir -p $(dir $@)
 	@$(LEX) -o $@ $<
 
-## Generate syntax.tab.c and syntax.tab.h by Bison
-$(IR_SYNTAX_TAB_C): $(IR_SYNTAX_Y)
-	@echo "+ YACC" $(notdir $<)
-	@mkdir -p $(dir $@)
-	@$(YACC) $(YACC_FLAGS) -o $@ $<
-
-$(OBJ_DIR)/%.o: $(IR_PARSE_GENERATE_DIR)/%.c $(IR_SYNTAX_TAB_C)
+# 编译 flex 生成的 .c
+$(OBJ_DIR)/IR_lex.yy.o: $(IR_LEX_YY_C) $(IR_SYNTAX_TAB_H)
 	@echo "+ CC" $(notdir $<)
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -o $@ $<
 
+# 编译 bison 生成的 .c
+$(OBJ_DIR)/IR_syntax.tab.o: $(IR_SYNTAX_TAB_C) $(IR_SYNTAX_TAB_H)
+	@echo "+ CC" $(notdir $<)
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) -o $@ $<
 
-# Rule (`#include` dependencies): paste in `.d` files generated by gcc on `-MMD`
+# 链接
+$(PARSER): $(OBJS)
+	@echo "+ LD" $(notdir $@)
+	@$(LD) -o $@ $^ $(LDFLAGS)
+
 -include $(OBJS:.o=.d)
 
-
-.PHONY: all build clean run gdb test
-.DEFAULT_GOAL = $(PARSER)
+.PHONY: all clean run gdb
 
 all: $(PARSER)
 
 clean:
 	rm -rf $(BUILD_DIR) $(PARSER)
 
-build: all
-
 run: $(PARSER)
 	$(PARSER) $(ARG)
 
-gdb: all
+gdb: $(PARSER)
 	gdb $(PARSER)
 
-test: all # Add args
-	$(PARSER)
+.DEFAULT_GOAL := all
