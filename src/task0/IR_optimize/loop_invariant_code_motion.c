@@ -13,19 +13,19 @@ typedef Map_IR_var_Set_ptr_IR_stmt_ptr *RD_Fact;
 DEF_MAP(IR_block_ptr, RD_Fact)
 typedef Map_IR_block_ptr_RD_Fact *ptr_Map_IR_block_ptr_RD_Fact;
 
-static void ReachingDefinitions_teardown(ReachingDefinitions *t);
-static bool ReachingDefinitions_isForward(ReachingDefinitions *t);
-static void *ReachingDefinitions_newBoundaryFact(ReachingDefinitions *t, IR_function *func);
-static void *ReachingDefinitions_newInitialFact(ReachingDefinitions *t);
-static void ReachingDefinitions_setInFact(ReachingDefinitions *t, IR_block *blk, void *fact);
-static void ReachingDefinitions_setOutFact(ReachingDefinitions *t, IR_block *blk, void *fact);
-static void *ReachingDefinitions_getInFact(ReachingDefinitions *t, IR_block *blk);
-static void *ReachingDefinitions_getOutFact(ReachingDefinitions *t, IR_block *blk);
-static bool ReachingDefinitions_meetInto(ReachingDefinitions *t, void *fact, void *target);
-static bool ReachingDefinitions_transferBlock(ReachingDefinitions *t, IR_block *block, void *in_fact, void *out_fact);
-static void ReachingDefinitions_printResult(ReachingDefinitions *t, IR_function *func);
+static void LICM_ReachingDefinitions_teardown(LICM_ReachingDefinitions *t);
+static bool LICM_ReachingDefinitions_isForward(LICM_ReachingDefinitions *t);
+static void *LICM_ReachingDefinitions_newBoundaryFact(LICM_ReachingDefinitions *t, IR_function *func);
+static void *LICM_ReachingDefinitions_newInitialFact(LICM_ReachingDefinitions *t);
+static void LICM_ReachingDefinitions_setInFact(LICM_ReachingDefinitions *t, IR_block *blk, void *fact);
+static void LICM_ReachingDefinitions_setOutFact(LICM_ReachingDefinitions *t, IR_block *blk, void *fact);
+static void *LICM_ReachingDefinitions_getInFact(LICM_ReachingDefinitions *t, IR_block *blk);
+static void *LICM_ReachingDefinitions_getOutFact(LICM_ReachingDefinitions *t, IR_block *blk);
+static bool LICM_ReachingDefinitions_meetInto(LICM_ReachingDefinitions *t, void *fact, void *target);
+static bool LICM_ReachingDefinitions_transferBlock(LICM_ReachingDefinitions *t, IR_block *block, void *in_fact, void *out_fact);
+static void LICM_ReachingDefinitions_printResult(LICM_ReachingDefinitions *t, IR_function *func);
 
-static void ReachingDefinitions_teardown(ReachingDefinitions *t) {
+static void LICM_ReachingDefinitions_teardown(LICM_ReachingDefinitions *t) {
     Map_IR_block_ptr_RD_Fact *in = (Map_IR_block_ptr_RD_Fact*)t->mapInFact;
     Map_IR_block_ptr_RD_Fact *out = (Map_IR_block_ptr_RD_Fact*)t->mapOutFact;
 
@@ -45,26 +45,26 @@ static void ReachingDefinitions_teardown(ReachingDefinitions *t) {
     RDELETE(Map_IR_block_ptr_RD_Fact, out);
 }
 
-static bool ReachingDefinitions_isForward(ReachingDefinitions *t) { return true; }
+static bool LICM_ReachingDefinitions_isForward(LICM_ReachingDefinitions *t) { return true; }
 
-static void *ReachingDefinitions_newBoundaryFact(ReachingDefinitions *t, IR_function *func) {
+static void *LICM_ReachingDefinitions_newBoundaryFact(LICM_ReachingDefinitions *t, IR_function *func) {
     return NEW(Map_IR_var_Set_ptr_IR_stmt_ptr);
 }
 
-static void *ReachingDefinitions_newInitialFact(ReachingDefinitions *t) {
+static void *LICM_ReachingDefinitions_newInitialFact(LICM_ReachingDefinitions *t) {
     return NEW(Map_IR_var_Set_ptr_IR_stmt_ptr);
 }
 
-static void ReachingDefinitions_setInFact(ReachingDefinitions *t, IR_block *blk, void *fact) {
+static void LICM_ReachingDefinitions_setInFact(LICM_ReachingDefinitions *t, IR_block *blk, void *fact) {
     VCALL(*(Map_IR_block_ptr_RD_Fact*)t->mapInFact, set, blk, (RD_Fact)fact);
 }
-static void ReachingDefinitions_setOutFact(ReachingDefinitions *t, IR_block *blk, void *fact) {
+static void LICM_ReachingDefinitions_setOutFact(LICM_ReachingDefinitions *t, IR_block *blk, void *fact) {
     VCALL(*(Map_IR_block_ptr_RD_Fact*)t->mapOutFact, set, blk, (RD_Fact)fact);
 }
-static void *ReachingDefinitions_getInFact(ReachingDefinitions *t, IR_block *blk) {
+static void *LICM_ReachingDefinitions_getInFact(LICM_ReachingDefinitions *t, IR_block *blk) {
     return VCALL(*(Map_IR_block_ptr_RD_Fact*)t->mapInFact, get, blk);
 }
-static void *ReachingDefinitions_getOutFact(ReachingDefinitions *t, IR_block *blk) {
+static void *LICM_ReachingDefinitions_getOutFact(LICM_ReachingDefinitions *t, IR_block *blk) {
     return VCALL(*(Map_IR_block_ptr_RD_Fact*)t->mapOutFact, get, blk);
 }
 
@@ -76,7 +76,7 @@ static bool Util_Set_Union(Set_ptr_IR_stmt_ptr dest, Set_ptr_IR_stmt_ptr src) {
     return updated;
 }
 
-static bool ReachingDefinitions_meetInto(ReachingDefinitions *t, void *void_fact, void *void_target) {
+static bool LICM_ReachingDefinitions_meetInto(LICM_ReachingDefinitions *t, void *void_fact, void *void_target) {
     RD_Fact fact = (RD_Fact)void_fact;
     RD_Fact target = (RD_Fact)void_target;
     bool updated = false;
@@ -90,7 +90,7 @@ static bool ReachingDefinitions_meetInto(ReachingDefinitions *t, void *void_fact
     return updated;
 }
 
-static void ReachingDefinitions_transferStmt(ReachingDefinitions *t, IR_stmt *stmt, RD_Fact fact) {
+static void LICM_ReachingDefinitions_transferStmt(LICM_ReachingDefinitions *t, IR_stmt *stmt, RD_Fact fact) {
     IR_var def = VCALL(*stmt, get_def);
     if (def != IR_VAR_NONE) {
         Set_ptr_IR_stmt_ptr def_set;
@@ -99,14 +99,14 @@ static void ReachingDefinitions_transferStmt(ReachingDefinitions *t, IR_stmt *st
     }
 }
 
-static bool ReachingDefinitions_transferBlock(ReachingDefinitions *t, IR_block *block, void *in_fact_void, void *out_fact_void) {
+static bool LICM_ReachingDefinitions_transferBlock(LICM_ReachingDefinitions *t, IR_block *block, void *in_fact_void, void *out_fact_void) {
     RD_Fact in_fact = (RD_Fact)in_fact_void;
     RD_Fact out_fact = (RD_Fact)out_fact_void;
-    RD_Fact curr_fact = (RD_Fact)ReachingDefinitions_newInitialFact(t);
-    ReachingDefinitions_meetInto(t, in_fact, curr_fact);
+    RD_Fact curr_fact = (RD_Fact)LICM_ReachingDefinitions_newInitialFact(t);
+    LICM_ReachingDefinitions_meetInto(t, in_fact, curr_fact);
     
     for_list(IR_stmt_ptr, i, block->stmts) {
-        ReachingDefinitions_transferStmt(t, i->val, curr_fact);
+        LICM_ReachingDefinitions_transferStmt(t, i->val, curr_fact);
     }
     
     bool changed = false;
@@ -119,21 +119,21 @@ static bool ReachingDefinitions_transferBlock(ReachingDefinitions *t, IR_block *
     return changed;
 }
 
-static void ReachingDefinitions_printResult(ReachingDefinitions *t, IR_function *func) { }
+static void LICM_ReachingDefinitions_printResult(LICM_ReachingDefinitions *t, IR_function *func) { }
 
-void ReachingDefinitions_init(ReachingDefinitions *t) {
-    const static struct ReachingDefinitions_virtualTable vTable = {
-        .teardown = ReachingDefinitions_teardown,
-        .isForward = ReachingDefinitions_isForward,
-        .newBoundaryFact = ReachingDefinitions_newBoundaryFact,
-        .newInitialFact = ReachingDefinitions_newInitialFact,
-        .setInFact = ReachingDefinitions_setInFact,
-        .setOutFact = ReachingDefinitions_setOutFact,
-        .getInFact = ReachingDefinitions_getInFact,
-        .getOutFact = ReachingDefinitions_getOutFact,
-        .meetInto = ReachingDefinitions_meetInto,
-        .transferBlock = ReachingDefinitions_transferBlock,
-        .printResult = ReachingDefinitions_printResult
+void LICM_ReachingDefinitions_init(LICM_ReachingDefinitions *t) {
+    const static struct LICM_ReachingDefinitions_virtualTable vTable = {
+        .teardown = LICM_ReachingDefinitions_teardown,
+        .isForward = LICM_ReachingDefinitions_isForward,
+        .newBoundaryFact = LICM_ReachingDefinitions_newBoundaryFact,
+        .newInitialFact = LICM_ReachingDefinitions_newInitialFact,
+        .setInFact = LICM_ReachingDefinitions_setInFact,
+        .setOutFact = LICM_ReachingDefinitions_setOutFact,
+        .getInFact = LICM_ReachingDefinitions_getInFact,
+        .getOutFact = LICM_ReachingDefinitions_getOutFact,
+        .meetInto = LICM_ReachingDefinitions_meetInto,
+        .transferBlock = LICM_ReachingDefinitions_transferBlock,
+        .printResult = LICM_ReachingDefinitions_printResult
     };
     t->vTable = &vTable;
     t->mapInFact = NEW(Map_IR_block_ptr_RD_Fact);
@@ -252,8 +252,8 @@ void LoopInvariantCodeMotion_optimize(IR_function *func) {
     }
 
     // 2. 到达定值分析
-    ReachingDefinitions rd;
-    ReachingDefinitions_init(&rd);
+    LICM_ReachingDefinitions rd;
+    LICM_ReachingDefinitions_init(&rd);
     iterative_solver((DataflowAnalysis*)&rd, func);
     
     // 3. 支配树
